@@ -1,4 +1,4 @@
-import {useState } from 'react';
+import {useCallback, useEffect, useState } from 'react';
 import './App.css';
 import Card from './components/card/card';
 import Cart from './components/cart/cart';
@@ -6,9 +6,14 @@ import { getData } from './constants/db';
 
 const sneakers = getData();
 
+const telegram = window.Telegram.WebApp;
 
 const App = () => {
 	const [cartItems, setCartItems] = useState([]);
+
+	useEffect(() => {
+		telegram.ready();
+	})
 
 	const onAddItem = item => {
 		const existItem = cartItems.find(c => c.id == item.id);
@@ -42,12 +47,41 @@ const App = () => {
 		}
 	};
 
+	const onCheckout = () => {
+		telegram.MainButton.text = 'Заказать';
+		telegram.MainButton.show();
+	}
+
+	const onSendData = useCallback(() => {
+		const queryID = telegram.initDataUnsafe?.query_id;
+		
+		if(queryID) {
+			fetch('https://telegram-server.onrender.com', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					products: cartItems,
+					queryID: queryID
+				})
+			})
+		}else {
+			telegram.sendData(JSON.stringify(cartItems))
+		}
+	}, [cartItems]);
+
+	useEffect(() => {
+		telegram.onEvent('mainButtonClicked', onSendData);
+		return () => telegram.offEvent('mainButtonClicked', onSendData)
+	}, [onSendData]);
+
 
 
 	return (
 		<>
 			<h1 className='heading'>Telegram Shop</h1>
-			<Cart cartItems={cartItems} />
+			<Cart cartItems={cartItems} onCheckout={onCheckout} />
 			<div className='cards__container'>
 				{sneakers.map(sneaker => (
 					<Card
